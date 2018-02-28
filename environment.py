@@ -185,8 +185,8 @@ if __name__ == '__main__':
     environment = Environment(len_items, backpack_capacity)
     FOLDER = '450_gen_30'
     plt.figure(1)
-    number_population = 20
-    STEP_NUMBER = 40
+    number_population = 30
+    STEP_NUMBER = 60
     start = time.time()
     number_generation = 5
 
