@@ -32,7 +32,8 @@ def draw_graph(graph, labels,
 
 def generate_graph(number_of_nodes):
     alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-                'P', 'R', 'S', 'T', 'U', 'W', 'X', 'Y', 'Z']
+                'P', 'R', 'S', 'T', 'U', 'W', 'X', 'Y', 'Z', 'AB', 'AA', 'AAA', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AS', 'AQ',
+                'PP', 'PS', 'PR', 'KL', 'GH', 'AZ', 'SX', 'SSS','KLS', 'CVS']
     costs = []
     times = []
     connections = []
@@ -42,7 +43,7 @@ def generate_graph(number_of_nodes):
         number = len(alphabet)
     else:
         number = number_of_nodes
-    iterations = random.randint(int(number * 1.5), number * 3)
+    iterations = 1000
     for i in range(0, iterations):
         flag = 0
         x = random.randint(0, number)
@@ -126,70 +127,94 @@ def iteration_of_crossover(generation):
     return new_generation
 
 
-def iteration_of_mutation(generation, number_of_iteration):
-    tau = (np.sqrt(2*np.sqrt(number_of_iteration + 1)))**(-1)
-    vau = (np.sqrt(2*number_of_iteration + 1))**(-1)
+def iteration_of_mutation(generation, number_of_iteration, number_of_nodes):
+    tau = (np.sqrt(2*np.sqrt(number_of_nodes + 1)))**(-1)
+    vau = (np.sqrt(2*number_of_nodes + 1))**(-1)
     for object in generation:
         zeta = np.random.normal()
         for i in range(0, len(object.parameters)):
             zeta_item = np.random.normal()
             epsilon_item = np.random.normal()
             object.standard_deviation[i] = object.standard_deviation[i] * np.exp(tau*zeta + vau*zeta_item)
-            object.parameters[i] = object.parameters[i] + int(object.standard_deviation[i] * epsilon_item)
+
+            if abs(object.standard_deviation[i] * epsilon_item) > 0.8:
+                r2 = random.randint(0, len(object.parameters) - 1)
+                object.parameters[i], object.parameters[r2] = object.parameters[r2], object.parameters[i]
+
 
     return generation
 
 
-def function_of_adaptation(generation, graph_number, costs, times, distances):
+def function_of_adaptation(generation, graph_number, costs, times, distances, number_of_object):
     parents = []
     parents_final = []
-    for object in generation:
+    for object in generation[:]:
         flag = 0
         for i in range(0, len(object.parameters) - 1):
-            for j in range(0, len(graph_number)-1):
-                if (object.parameters[i], object.parameters[i + 1]) != (graph_number[j])\
-                        or (object.parameters[i + 1], object.parameters[i]) != (graph_number[j]):
-                    flag += 1
-                else:
-                    object.adaptation += costs[i] + times[i] + distances[i]
+            find = False
+
+            for j in range(0, len(graph_number)):
+                if (object.parameters[i], object.parameters[i + 1]) ==  graph_number[j] \
+                        or (object.parameters[i + 1], object.parameters[i]) == graph_number[j]:
+                    object.adaptation += costs[j] + times[j] + distances[j]
+                    find = True
+            if not find:
+                flag += 1
 
         if flag == 0:
             parents.append(object)
         else:
             object.flag = flag
     print(len(parents))
-    if parents is not None:
-        for i in range(0, 20):
-            best = 100000
-            for item in parents:
-                if best > item.adaptation:
-                    best = item
-            parents_final.append(best)
-    else:
-        for i in range(len(parents_final), 20):
-            min = None
-            min_value = 10000
-            for object in generation:
-                if object.flag < min_value:
-                    min = object
-                    min_value = object.flag
-            parents_final.append(min)
+    if len(parents) > 0:
+        parents = sorted(parents, key= lambda parent: parent.adaptation)
+        if len(parents) < number_of_object:
+            parents_final = parents[:]
+        else:
+            parents_final = parents[:number_of_object]
 
-    return parents_final
+    generation = [obj for obj in generation if obj.flag > 0]
+    generation = sorted(generation, key=lambda parent: parent.flag)
+    parents_final = parents_final + generation[:number_of_object - len(parents_final)]
+    # parents_final.append(min)
+
+    lack_of_path = []
+    cost = []
+    for parent in parents_final:
+        cost.append(parent.adaptation)
+        lack_of_path.append(parent.flag)
+        parent.adaptation = 0
+        parent.flag = 0
+
+    print(lack_of_path)
+    return parents_final, np.mean(cost), np.mean(lack_of_path)
 
 
 if __name__ == '__main__':
     random.seed(time.time())
-    number_of_nodes = 10
-    number_of_object = 20
-    number_of_iterations = 40
+    number_of_nodes = 45
+    number_of_object = 30
+    number_of_iterations = 56
     graph, graph_numbers, costs, times, distances = generate_graph(number_of_nodes)
     draw_graph(graph, costs)
 
     basic_generation = generate_population(number_of_object, number_of_nodes)
-
+    cost_avg = []
+    lack_of_path_avg = []
     for iterator in range(0, number_of_iterations):
         new_generation = draw_posterity(basic_generation)
         generation_after_crossover = iteration_of_crossover(new_generation)
-        generation_after_mutation = iteration_of_mutation(generation_after_crossover, iterator)
-        basic_generation = function_of_adaptation(generation_after_mutation, graph_numbers, costs, times, distances)
+        generation_after_mutation = iteration_of_mutation(generation_after_crossover, iterator, number_of_nodes)
+        basic_generation, cost, lack_of_path = function_of_adaptation(generation_after_mutation, graph_numbers, costs, times, distances, number_of_object)
+        cost_avg.append(cost)
+        lack_of_path_avg.append(lack_of_path)
+
+    plt.subplot(211 )
+    plt.plot(cost_avg)
+    plt.ylabel('Średnia wartośc funkcji przystosowania')
+    plt.subplot(212)
+    plt.plot(lack_of_path_avg)
+    plt.ylabel('Średnia ilośc ścieżek nie do przejścia')
+
+
+    plt.show()
