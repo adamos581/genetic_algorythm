@@ -2,11 +2,22 @@ import numpy as np
 from numpy import random
 import copy
 import matplotlib.pyplot as plt
+import time
+"""
+Program do optymalizacji z wykorzystaniem algorytmów genetycznych. Program ten generuje losowo wektor przedmiotów, gdzie
+każdy z nich posiada określoną wartość i wagę. Optymalizacja polega na zapakowaniu plecaka mającego okresloną pojemność,
+przedmiotami tak by przedmioty te miały jak najwiekszą wartość.
+W tym celu została wykorzystana strategia ewolucyjna (mi + lambda).
+W wyniku powstaje wykres przedstawiający 5 różnych generacji zawierający informację o średniej wartości funkcji 
+przystosowania danej generacji wraz z odchyleniem standardowym (dzięki temu można zaobserwować różnorodność populacji,
+a także zbieżność algorytmu).
+"""
 
 
 class Environment:
 
     def __init__(self, amount, capacity):
+
         self.weights = random.random_integers(0, 10,amount)
         self.value = random.random_integers(0, 10,amount)
         self.capacity = capacity
@@ -19,9 +30,9 @@ class Species:
         self.standard_deviation = random.rand(amount)
 
     def fit(self, environment):
-        weight = [x for i, x in zip(self.backpack, environment.weights) if i == 1]
+        weight = [x for i, x in zip(self.backpack, environment.weights) if int(np.round(i)) == 1]
         sum_weight = np.sum(weight)
-        value = [x for i, x in zip(self.backpack, environment.value) if i == 1]
+        value = [x for i, x in zip(self.backpack, environment.value) if int(np.round(i)) == 1]
         sum_value = np.sum(value)
         return sum_weight, sum_value
 
@@ -93,11 +104,39 @@ def mutation(parents, step):
         for backpack, deviation in zip(backpack_vector, new_deviation):
             eta_i = random.normal()
             change =  eta_i * deviation
+            #Mozna by zastosowac kumulacje mutacji
             if abs(change) >= 0.5:
                 if backpack == 1:
                     backpack = 0
                 else:
                     backpack = 1
+            new_backpack.append(backpack)
+        parent.backpack = new_backpack
+    return parents
+
+
+def accumulation_mutation(parents, step):
+
+    for parent in parents:
+        teta = random.normal()
+        tau = np.sqrt(np.sqrt(step + 1) * 2) ** -1
+        v = np.sqrt(1 + step * 2) ** -1
+        deviation_vector = parent.standard_deviation
+        new_deviation = []
+        for deviation in deviation_vector:
+            teta_i = random.normal()
+            deviation = deviation * (np.e ** (tau * teta + v * teta_i))
+            new_deviation.append(deviation)
+
+        parent.standard_deviation = new_deviation
+        backpack_vector = parent.backpack
+        new_backpack = []
+
+        for backpack, deviation in zip(backpack_vector, new_deviation):
+            eta_i = random.normal()
+            change =  eta_i * deviation
+            #Mozna by zastosowac kumulacje mutacji
+            backpack += change
             new_backpack.append(backpack)
         parent.backpack = new_backpack
     return parents
@@ -140,24 +179,29 @@ def get_best(population, environment, number_population):
 
 
 if __name__ == '__main__':
-    len_items = 150
+    len_items = 200
+    backpack_capacity = 450
     # population = [Species(len_items) for i in range(number_population)]
-    environment = Environment(len_items, 400)
-
+    environment = Environment(len_items, backpack_capacity)
+    FOLDER = '450_gen_30'
     plt.figure(1)
+    number_population = 20
+    STEP_NUMBER = 40
+    start = time.time()
+    number_generation = 5
 
-    for i in range(3):
-        number_population = 40
+    for step_gen in range(number_generation):
 
         population = [Species(len_items) for i in range(number_population)]
 
         average_value = []
         average_weights = []
         std_values = []
-        for i in range(35):
+        for i in range(STEP_NUMBER):
             parents = create_parents(population, number_population)
             parents_crossover = uniform_crossover(parents, len_items)
-            parents_mutation = mutation(parents_crossover, i)
+            #Zamiast len_items mozna zastosowac krok algorytmu dzieki temu algorytm bedzie zbiegal
+            parents_mutation = accumulation_mutation(parents_crossover, len_items)
             population = population + parents_mutation
             population = get_best(population, environment, number_population)
             average_value.append(population[1])
@@ -165,15 +209,20 @@ if __name__ == '__main__':
             std_values.append(population[3])
 
             population = population[0]
-            print (i)
+            print('\r', end='')
+            print('Generation: {0} / {1}'.format(step_gen, number_generation), end='\t', flush=True)
 
-        plt.subplot(211 )
+            print('Step: {0} / {1}'.format(i, STEP_NUMBER), end='', flush=True)
+        sub = plt.subplot(211)
 
         plt.errorbar(range(len(average_value)),average_value,  yerr=std_values)
         plt.ylabel('wartosc plecaka')
         plt.subplot(212)
         plt.plot(average_weights)
         plt.ylabel('waga plecaka')
+    end = time.time()
+    print('\n czas obliczeń %f' % (end - start))
 
-
-    plt.show()
+    plt.savefig(FOLDER + "/100mut")
+    plt.close()
+    best_object = population[0]
